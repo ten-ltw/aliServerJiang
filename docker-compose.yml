@@ -1,15 +1,9 @@
 version: '3.8'
 
 services:
-  rfq-scraper:
-    build: .
-    container_name: rfq-scraper
+  shangji:
+    image: shangji:latest
+    container_name: shangji
     restart: always
-    volumes:
-      - ./logs:/app/logs
-      - ./processed_ids.json:/app/processed_ids.json
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+    environment:
+      - NODE_ENV=production

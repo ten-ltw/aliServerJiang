@@ -240,8 +240,25 @@ async function scrapeOneURL(urlConfig, idManager) {
         const idMatch = objStr.match(/id:\s*"([^"]+)"/);
         const id = idMatch ? idMatch[1] : "";
 
-        const starLevelMatch = objStr.match(/rfqStarLevel:\s*parseInt\("(\d+)"/);
-        const rfqStarLevel = starLevelMatch ? parseInt(starLevelMatch[1]) : 0;
+        // const starLevelMatch = objStr.match(/rfqStarLevel:\s*parseInt\("(\d+)"/);
+        // const rfqStarLevel = starLevelMatch ? parseInt(starLevelMatch[1]) : 0;
+
+        let rfqStarLevel = 0;
+        const tagsMatch = objStr.match(/tags:\s*(\[[\s\S]*?\])\s*\|\|/);
+        
+        if (tagsMatch) {
+          const tagMatch = tagsMatch[1].match(/\{"tagName":"([^"]+)","type":"rfq_level"/);
+          if (tagMatch) {
+            const tagName = tagMatch[1];
+            // 映射表
+            const levelMap = {
+              'RFQ_MKT_ST_28102': 2,
+              'RFQ_MKT_ST_28101': 3,
+              'RFQ_MKT_ST_39408': 1,
+            };
+            rfqStarLevel = levelMap[tagName] || 0;
+          }
+        }
 
         const openTimeMatch = objStr.match(/openTimeStr:\s*"([^"]+)"/);
         const openTimeStr = openTimeMatch ? openTimeMatch[1] : "";
