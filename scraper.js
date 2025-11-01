@@ -252,8 +252,8 @@ async function scrapeOneURL(urlConfig, idManager) {
             const tagName = tagMatch[1];
             // 映射表
             const levelMap = {
-              'RFQ_MKT_ST_28102': 2,
-              'RFQ_MKT_ST_28101': 3,
+              'RFQ_MKT_ST_28102': 3,//铜牌
+              'RFQ_MKT_ST_28101': 2,//银牌
               'RFQ_MKT_ST_39408': 1,
             };
             rfqStarLevel = levelMap[tagName] || 0;
