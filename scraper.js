@@ -166,9 +166,9 @@ async function sendWeworkMessage(messageData, webhookUrl) {
   };
 
   const levelImage = levelImages[messageData.rfqStarLevel];
-  const contentPreview = messageData.enDescription.length > 200 
-    ? messageData.enDescription.substring(0, 200) + "..." 
-    : messageData.enDescription;
+  const contentPreview = messageData.description.length > 200 
+    ? messageData.description.substring(0, 200) + "..." 
+    : messageData.description;
 
   const markdownContent = `
 ##### ${messageData.subject}
@@ -194,10 +194,10 @@ async function sendWeworkMessage(messageData, webhookUrl) {
 
 // ========== 发送给客户 ==========
 async function sendToClient(item, webhook) {
-  const result = await fetchDetailHTML(item.url, item.id);
-  result.rfqStarLevel = item.rfqStarLevel;
-  result.country = item.country;
-  await sendWeworkMessage(result, webhook);
+  // const result = await fetchDetailHTML(item.url, item.id);
+  // result.rfqStarLevel = item.rfqStarLevel;
+  // result.country = item.country;
+  await sendWeworkMessage(item, webhook);
   return true;
 }
 
@@ -235,7 +235,7 @@ async function scrapeOneURL(urlConfig, idManager) {
         let objStr = matches[i][1];
 
         const urlMatch = objStr.match(/url:\s*"([^"]+)"/);
-        const url = urlMatch ? urlMatch[1] : "";
+        let url = urlMatch ? urlMatch[1] : "";
 
         const idMatch = objStr.match(/id:\s*"([^"]+)"/);
         const id = idMatch ? idMatch[1] : "";
@@ -266,7 +266,18 @@ async function scrapeOneURL(urlConfig, idManager) {
         const countryMatch = objStr.match(/country:\s*"([^"]*)"/);
         const country = countryMatch ? countryMatch[1] : "";
 
-        const item = { id, url, rfqStarLevel, openTimeStr, country };
+        const quantityMatch = objStr.match(/quantity:\s*'([^']*)'/);
+        const quantity = quantityMatch ? quantityMatch[1] : "";
+
+        const descriptionMatch = objStr.match(/description:\s*"([^"]*)"/);
+        const description = descriptionMatch ? descriptionMatch[1] : "";
+
+        const subjectMatch = objStr.match(/subject:\s*"([^"]*)"/);
+        const subject = subjectMatch ? subjectMatch[1] : "";
+
+        url = url.startsWith("//") ? "https:" + url : url.startsWith("http") ? url : "https://" + url;
+
+        const item = { id, url, rfqStarLevel, openTimeStr, country, quantity, description, subject };
 
         if (idManager.exists(id)) {
           stats.duplicate++;
