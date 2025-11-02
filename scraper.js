@@ -139,11 +139,14 @@ async function sendWeworkMessage(item, webhookUrl) {
   const contentPreview = item.description.length > 200 
     ? item.description.substring(0, 200) + "..." 
     : item.description;
-
+  const now = new Date().toLocaleString('zh-CN', { 
+    timeZone: 'Asia/Shanghai',
+    hour12: false 
+  });
   const markdownContent = `
 ##### ${item.subject}
 ![等级](${levelImage})
-**时间:** ${item.openTimeStr}
+**时间:** ${now}
 **数量:** ${item.quantity}
 **来源:** ${item.country}
 **内容描述:** ${contentPreview}[阅读详情](${item.url})
