@@ -7,24 +7,24 @@ const CONFIG = {
   maxStoredIds: 25, // 每个类别保存25条
   loopInterval: 30000,
   urls: [
-    {
-      name: "纸袋",
-      idFile: "processed_ids_paper_bag.json", // 独立的ID文件
-      url: "https://sourcing.alibaba.com/rfq/rfq_search_list.htm?spm=a2700.8073608.1998677539.14.68ff65aaNkrl5H&categoryIds=201271492&recently=Y",
-      webhook: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=691cd204-4530-4cec-a5f2-c20d53c7b500",
-    },
+    // {
+    //   name: "纸袋",
+    //   idFile: "processed_ids_paper_bag.json", // 独立的ID文件
+    //   url: "https://sourcing.alibaba.com/rfq/rfq_search_list.htm?spm=a2700.8073608.1998677539.14.68ff65aaNkrl5H&categoryIds=201271492&recently=Y",
+    //   webhook: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=691cd204-4530-4cec-a5f2-c20d53c7b500",
+    // },
     {
       name: "标签",
       idFile: "processed_ids_label.json", // 独立的ID文件
       url: "https://sourcing.alibaba.com/rfq/rfq_search_list.htm?spm=a2700.8073608.1998677539.13.4ad465aaP5FXb9&categoryIds=201726904&recently=Y",
       webhook: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=63d28aab-5e65-4273-ab0d-398cf430790b",
     },
-    {
-      name: "卡片",
-      idFile: "processed_ids_card.json", // 独立的ID文件
-      url: "https://sourcing.alibaba.com/rfq/rfq_search_list.htm?spm=a2700.8073608.1998677539.13.6b0e65aaFBblYX&categoryIds=100002844&recently=Y",
-      webhook: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=4aa70d53-ac0f-49cc-b410-43af270fc07e",
-    },
+    // {
+    //   name: "卡片",
+    //   idFile: "processed_ids_card.json", // 独立的ID文件
+    //   url: "https://sourcing.alibaba.com/rfq/rfq_search_list.htm?spm=a2700.8073608.1998677539.13.6b0e65aaFBblYX&categoryIds=100002844&recently=Y",
+    //   webhook: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=4aa70d53-ac0f-49cc-b410-43af270fc07e",
+    // },
   ],
 };
 
