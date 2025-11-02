@@ -143,6 +143,7 @@ async function sendWeworkMessage(item, webhookUrl) {
   const markdownContent = `
 ##### ${item.subject}
 ![等级](${levelImage})
+**时间:** ${item.openTimeStr}
 **数量:** ${item.quantity}
 **来源:** ${item.country}
 **内容描述:** ${contentPreview}[阅读详情](${item.url})
