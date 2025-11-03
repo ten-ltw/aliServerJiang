@@ -1,10 +1,19 @@
 const axios = require("axios");
 const cheerio = require("cheerio");
 const sqlite3 = require("sqlite3").verbose();
+const fs = require("fs");
+const path = require("path");
+
+// ========== 确保数据目录存在 ==========
+const dataDir = path.join(__dirname, 'data');
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+  console.log('✓ 已创建 data 目录');
+}
 
 // ========== 配置 ==========
 const CONFIG = {
-  dbPath: "crawler.db", // SQLite数据库文件
+  dbPath: path.join(__dirname, "data", "crawler.db"), // ✅ 数据库在 data 目录
   loopInterval: 30000,
   urls: [
     // {

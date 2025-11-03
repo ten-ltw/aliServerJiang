@@ -5,11 +5,8 @@ services:
     image: shangji:latest
     container_name: shangji
     restart: always
-    environment:
-      - NODE_ENV=production
     volumes:
-      - ./data:/app
-    # 可选：如果需要查看日志
+      - ./data:/app/data  # ✅ 映射 data 目录
     logging:
       driver: "json-file"
       options:
