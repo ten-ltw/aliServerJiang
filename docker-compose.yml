@@ -7,3 +7,11 @@ services:
     restart: always
     environment:
       - NODE_ENV=production
+    volumes:
+      - ./data:/app
+    # 可选：如果需要查看日志
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
