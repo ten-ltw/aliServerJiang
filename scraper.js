@@ -435,10 +435,19 @@ async function sendWeworkMessage(item, webhookUrl) {
 async function scrapeOneURL(urlConfig, dbManager) {
   const stats = { total: 0, duplicate: 0, new: 0, sent: 0, failed: 0 };
   const tableName = urlConfig.tableName;
-
+  const fullCookie = `
+ali_apache_id=33.8.180.39.1761265072910.656194.5;
+_tb_token_=7835377600e87;
+cookie2=1d48e853a04e4d5f55e6d4f88b7ed66;
+ali_apache_track=mt=3|mid=ch1558703453h|wmxman_us_f=x_l=1&cna=M7WBIW+5GAYCAXQDEsaFSJZ2;
+int_common_former=DQWOdLuP:23ZNUvolco//wpG70ObSuPRzQ5iF1H51Q1SPfey9@NfQg==;
+xman_status2=0;
+JSESSIONID=139E254AE4F4DA99D253435B2F6968E4
+`.replace(/\n/g, '').trim();
   try {
     const response = await axios.get(urlConfig.url, {
       headers: {
+        "Cookie": fullCookie,
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
       },
