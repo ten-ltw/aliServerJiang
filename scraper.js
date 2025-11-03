@@ -495,6 +495,7 @@ ali_apache_id=33.8.180.39.1761265072910.656194.5; t=03c76544007e9e8fb622decbee5d
           if (tagMatch) {
             const tagName = tagMatch[1];
             const levelMap = {
+              RFQ_MKT_ST_28103: 2,
               RFQ_MKT_ST_28102: 2,
               RFQ_MKT_ST_28101: 3,
               RFQ_MKT_ST_39408: 1,
