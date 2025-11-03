@@ -16,24 +16,24 @@ const CONFIG = {
   dbPath: path.join(__dirname, "data", "crawler.db"), // ✅ 数据库在 data 目录
   loopInterval: 30000,
   urls: [
-    // {
-    //   name: "纸袋",
-    //   tableName: "paper_bag", // 独立的表名
-    //   url: "https://sourcing.alibaba.com/rfq/rfq_search_list.htm?spm=a2700.8073608.1998677539.14.68ff65aaNkrl5H&categoryIds=201271492&recently=Y",
-    //   webhook: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=691cd204-4530-4cec-a5f2-c20d53c7b500",
-    // },
+    {
+      name: "纸袋",
+      tableName: "paper_bag", // 独立的表名
+      url: "https://sourcing.alibaba.com/rfq/rfq_search_list.htm?spm=a2700.8073608.1998677539.14.68ff65aaNkrl5H&categoryIds=201271492&recently=Y",
+      webhook: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=691cd204-4530-4cec-a5f2-c20d53c7b500",
+    },
     {
       name: "标签",
       tableName: "label", // 独立的表名
       url: "https://sourcing.alibaba.com/rfq/rfq_search_list.htm?spm=a2700.8073608.1998677539.13.4ad465aaP5FXb9&categoryIds=201726904&recently=Y",
       webhook: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=63d28aab-5e65-4273-ab0d-398cf430790b",
     },
-    // {
-    //   name: "卡片",
-    //   tableName: "card", // 独立的表名
-    //   url: "https://sourcing.alibaba.com/rfq/rfq_search_list.htm?spm=a2700.8073608.1998677539.13.6b0e65aaFBblYX&categoryIds=100002844&recently=Y",
-    //   webhook: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=4aa70d53-ac0f-49cc-b410-43af270fc07e",
-    // },
+    {
+      name: "卡片",
+      tableName: "card", // 独立的表名
+      url: "https://sourcing.alibaba.com/rfq/rfq_search_list.htm?spm=a2700.8073608.1998677539.13.6b0e65aaFBblYX&categoryIds=100002844&recently=Y",
+      webhook: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=4aa70d53-ac0f-49cc-b410-43af270fc07e",
+    },
   ],
 };
 
@@ -436,13 +436,7 @@ async function scrapeOneURL(urlConfig, dbManager) {
   const stats = { total: 0, duplicate: 0, new: 0, sent: 0, failed: 0 };
   const tableName = urlConfig.tableName;
   const fullCookie = `
-ali_apache_id=33.8.180.39.1761265072910.656194.5;
-_tb_token_=7835377600e87;
-cookie2=1d48e853a04e4d5f55e6d4f88b7ed66;
-ali_apache_track=mt=3|mid=ch1558703453h|wmxman_us_f=x_l=1&cna=M7WBIW+5GAYCAXQDEsaFSJZ2;
-int_common_former=DQWOdLuP:23ZNUvolco//wpG70ObSuPRzQ5iF1H51Q1SPfey9@NfQg==;
-xman_status2=0;
-JSESSIONID=139E254AE4F4DA99D253435B2F6968E4
+ali_apache_id=33.8.180.39.1761265072910.656194.5; t=03c76544007e9e8fb622decbee5d426e; cna=tbOBIWIYuk4CAXQDEsbjxxnp; sc_g_cfg_f=sc_b_site=CN&sc_b_locale=en_US&sc_b_currency=CNY; _ga=GA1.2.228270212.1761813577; _gid=GA1.2.1081960679.1761813577; xlly_s=1; _samesite_flag_=true; cookie2=1d48e853a04e4d5d65c6d44f88b7cd66; _tb_token_=78353776e0e87; sca=e0738437; ali_apache_tracktmp=W_signed=Y; ali_apache_track=mt=3|mid=cn1568703453hmwa; xman_us_f=x_locale=en_US&x_user=CN|Peanut|Hu|cgs|278795110&no_popup_today=n&last_popup_time=1762139209591&x_l=1; intl_common_forever=DQWOdLuPr23ZNUv0ioo/nwpG70Ob5uPRzQ5iF1H51Q1SPfcy9eNfQg==; xman_us_t=l_source=alibaba&sign=y&need_popup=y&x_user=RdUK0Gn0EuwLZc0QaA8VQB2wIyxGjahH9JMNGFFFZ5I=&ctoken=b_jglf5l0ovk&x_lid=cn1568703453hmwa; xman_f=W27Qr142aoAxcihl8dlcPQ4VJ+VTWE7Rco0LiD2sBTS0jMUlKMqiQ3AQ34gDzBMCnbeAfClIOrpmmyA9QoxarRT9LfvILmacGPX6dAjVsAo6NFa+Xc0YtnHuyKGi6XR/W53WYNBGggKzE/XSHNuTnULe+PGlblYY/FVFcf2xh7pdqfU5Ns3CmKAPn6uRGQQypXvhlRHjn2ZRcaNqCzY/u+aUZl6HbQNOvUmvVx22wUwt/WFWq4PKyw5/C2yH1j8AnFPhsRUwebQEwrMoa2O+B8q9tyEG8cQBWN6r8p4mGR5LIl9jQ3XBia/bWYDhAyxUMHgzynevHew98noMNcOq6hMwWUNwieydH4+pLqPqwc/3mIg+7JEfGV16qtfO4ZFgW0j7lZFZnkqZWD/CyIM+zw==; acs_usuc_t=acs_rt=90ade3817d664d0889310e734dffb365; intl_locale=en_US; xman_i=aid=2218151544130; sgcookie=E100nR0EQshS8Pab02BvoO/mZ/0ew0yeIRdoI44beDOfS/Mpd99TPcq+Adrhsrw7FPA0XIYT/4gJuVg5OSjjSoCG1v72ija2KwV6eKFH6O3ar6g=; xman_status2=0; xman_t=G49n7tq5+Uwuyw+R7a5b7VY3Z4d/l/Ct7hZXQ4c0BfDOT069gv9kulstjOHxYZWR5tvDmldISKul9bV++q6kz4zjirYr8Ua2eb1QN/AERMhyuN8byvSR1NESl8HeOId8axsm1Cpe9KyU4ZadTk5blm9i8ymux9z86N6L0DnDiWy+7HXTNSjls7uVnIZUYtUc0QamBUUEH/FaUxr8TOTnQA4rt5a+sLyA2vedG6lZDIgJrdB4X5A3enfUd1pIjE/Zr0W8YeT+HLOgglvvgUSIZcoaZZhOSRFb/XZ5SVAHML8cXcFLQCQmIIwtT0PPFCZcmgZanBRwiKIJzquxR58/QIyNZUuI33QwkWgUVvD/ZkvW1DkS3wiqkHMmuz1RwP0s9r2up4XBu6ypEiHCkQwLq0BhWDkMK1tSpE3hzHSk+zInYzW7jZE50juD4hr28b47v9xHAbCYIXJYmDtIysHG/JRHXogC3ReAWbVlCGXUzh3/xtCgxfRs7G/pOQ+3lkOjgc2hekDRBXO9pVcVvtucegTcsi4BqcHJ08/q3lkCN/jtZJJ7uSfGIgzGc7d0Qy0NoUK1g8QLy/kGhO+C+uUVz3h1YepW3mjqYGKb6305nrZPfqNl4wGFdtrRw6ljfaAquUh9UW79IFHXLauzNntZXhqf5yW0MVlQnxnJEofDslGCqHOJGa6S6tOsMmD3ScHMwdGDSPRkDvGocmrJ+recGg==; isg=BICAf7ku_UuqkoFPtizMWT0eUQ5SCWTT6k_L1PoRhhsudSGfohxjY07Vi9W1Xhyr; ug_se_c=organic_1762147910165; ug_se_c_tag=ts=1762147910165; atpsida=33c2977bce9cc0bf142e0f35_1762148366_8; _gat=1; icbu_s_tag=10_5_11; _ga_9RX53F1PN8=GS2.2.s1762145975$o17$g1$t1762148369$j60$l0$h0; tfstk=gNRqmLg59jh4HQESG3Ca8heiiO1Ai1oQsCs1SFYGlijccsNGIhxVCnTiHVlwbhutkFmvbCSk5d_fiOwNsLY9hqBsDP-W2nPb1FA1SC5vNKN1cmCwSH1ZADGIOELAB1mIAIGdtP5GSfsiFt4u0ETSADGIN7iTsToBlClGh_bOqZVcI50zrwQOslXDjgXl-wZcs1xiz_bCuo2GjNYlrwSlj1fMjU0PWgbcs1xMr47ttp6Oh8scn4_GpzKzRw6VxEjzTedPo1evogPa_QJP3Mq145VMaZ8aF4kbTAsHpi6CV3c7g18l73WB3DP2bFYpITRamqtHPndFiBo4Ga6N0LAcUPVGZ_9DAd-q0-IDh3WdrT4Z9atCqEdDUVEkoHsViaXSt28lILOApIiug6vpls9Mx0wfmp7G4IEOr9wM6KrgQtbRzMgrz7LeDafWFbUYBRBuqaSI8MwTBtbRzMgrzReOEYbPA2SC.; JSESSIONID=8A3E3129A977D24D1F703A228A4B76C9
 `.replace(/\n/g, '').trim();
   try {
     const response = await axios.get(urlConfig.url, {
