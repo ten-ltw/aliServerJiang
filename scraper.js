@@ -1,6 +1,6 @@
 const axios = require("axios");
 const cheerio = require("cheerio");
-const sqlite3 = require("sqlite3").verbose();
+const Database = require('better-sqlite3');
 const fs = require("fs");
 const path = require("path");
 
@@ -42,316 +42,206 @@ class SQLiteIDManager {
   constructor(dbPath) {
     this.dbPath = dbPath;
     this.db = null;
-    this.initPromise = this.init();
+    this.init();
   }
 
   /**
-   * 初始化数据库连接和表结构
+   * 初始化数据库连接
    */
-  async init() {
-    return new Promise((resolve, reject) => {
-      this.db = new sqlite3.Database(this.dbPath, (err) => {
-        if (err) {
-          console.error("❌ 数据库连接失败:", err.message);
-          reject(err);
-        } else {
-          console.log(`✓ 数据库已连接: ${this.dbPath}`);
-          resolve();
-        }
-      });
-    });
+  init() {
+    try {
+      // ✅ 使用 better-sqlite3（同步 API）
+      this.db = new Database(this.dbPath);
+      console.log(`✓ 数据库已连接: ${this.dbPath}`);
+    } catch (err) {
+      console.error("❌ 数据库连接失败:", err.message);
+      throw err;
+    }
   }
 
   /**
    * 为指定分类创建独立的表
    */
   async createTableForCategory(tableName) {
-    await this.initPromise;
+    try {
+      // 1. 已处理ID表
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS ${tableName}_ids (
+          id TEXT PRIMARY KEY,
+          first_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          last_checked_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
 
-    return new Promise((resolve, reject) => {
-      this.db.serialize(() => {
-        // 1. 已处理ID表（核心去重表）
-        this.db.run(
-          `CREATE TABLE IF NOT EXISTS ${tableName}_ids (
-            id TEXT PRIMARY KEY,
-            first_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            last_checked_at DATETIME DEFAULT CURRENT_TIMESTAMP
-          )`,
-          (err) => {
-            if (err) {
-              console.error(`❌ 创建表 ${tableName}_ids 失败:`, err.message);
-              reject(err);
-            }
-          }
-        );
+      // 2. 推送日志表
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS ${tableName}_logs (
+          log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+          item_id TEXT NOT NULL,
+          subject TEXT,
+          url TEXT,
+          quantity TEXT,
+          country TEXT,
+          rfq_level INTEGER,
+          status TEXT NOT NULL,
+          error_message TEXT,
+          pushed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
 
-        // 2. 推送日志表
-        this.db.run(
-          `CREATE TABLE IF NOT EXISTS ${tableName}_logs (
-            log_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            item_id TEXT NOT NULL,
-            subject TEXT,
-            url TEXT,
-            quantity TEXT,
-            country TEXT,
-            rfq_level INTEGER,
-            status TEXT NOT NULL,
-            error_message TEXT,
-            pushed_at DATETIME DEFAULT CURRENT_TIMESTAMP
-          )`,
-          (err) => {
-            if (err) {
-              console.error(`❌ 创建表 ${tableName}_logs 失败:`, err.message);
-              reject(err);
-            }
-          }
-        );
+      // 3. 统计表
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS ${tableName}_stats (
+          stat_id INTEGER PRIMARY KEY AUTOINCREMENT,
+          total_fetched INTEGER DEFAULT 0,
+          new_items INTEGER DEFAULT 0,
+          duplicate_items INTEGER DEFAULT 0,
+          push_success INTEGER DEFAULT 0,
+          push_failed INTEGER DEFAULT 0,
+          crawled_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
 
-        // 3. 统计表
-        this.db.run(
-          `CREATE TABLE IF NOT EXISTS ${tableName}_stats (
-            stat_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            total_fetched INTEGER DEFAULT 0,
-            new_items INTEGER DEFAULT 0,
-            duplicate_items INTEGER DEFAULT 0,
-            push_success INTEGER DEFAULT 0,
-            push_failed INTEGER DEFAULT 0,
-            crawled_at DATETIME DEFAULT CURRENT_TIMESTAMP
-          )`,
-          (err) => {
-            if (err) {
-              console.error(`❌ 创建表 ${tableName}_stats 失败:`, err.message);
-              reject(err);
-            } else {
-              console.log(`✓ 表 ${tableName} 系列已就绪`);
-              resolve();
-            }
-          }
-        );
+      // 创建索引
+      this.db.exec(`CREATE INDEX IF NOT EXISTS idx_${tableName}_id ON ${tableName}_ids(id)`);
+      this.db.exec(`CREATE INDEX IF NOT EXISTS idx_${tableName}_pushed_at ON ${tableName}_logs(pushed_at)`);
 
-        // 创建索引
-        this.db.run(`CREATE INDEX IF NOT EXISTS idx_${tableName}_id ON ${tableName}_ids(id)`);
-        this.db.run(`CREATE INDEX IF NOT EXISTS idx_${tableName}_pushed_at ON ${tableName}_logs(pushed_at)`);
-      });
-    });
+      console.log(`✓ 表 ${tableName} 系列已就绪`);
+    } catch (err) {
+      console.error(`❌ 创建表失败:`, err.message);
+      throw err;
+    }
   }
 
   /**
    * 检查ID是否存在
    */
   async exists(tableName, id) {
-    await this.initPromise;
-
-    return new Promise((resolve, reject) => {
-      this.db.get(
-        `SELECT id FROM ${tableName}_ids WHERE id = ?`,
-        [id],
-        (err, row) => {
-          if (err) reject(err);
-          else resolve(!!row);
-        }
-      );
-    });
+    const row = this.db.prepare(`SELECT id FROM ${tableName}_ids WHERE id = ?`).get(id);
+    return !!row;
   }
 
   /**
    * 批量检查ID是否存在（返回新ID列表）
    */
   async filterNewIds(tableName, ids) {
-    await this.initPromise;
-
     if (ids.length === 0) return [];
 
     const placeholders = ids.map(() => "?").join(",");
-    return new Promise((resolve, reject) => {
-      this.db.all(
-        `SELECT id FROM ${tableName}_ids WHERE id IN (${placeholders})`,
-        ids,
-        (err, rows) => {
-          if (err) reject(err);
-          else {
-            const existingIds = new Set(rows.map((r) => r.id));
-            const newIds = ids.filter((id) => !existingIds.has(id));
-            resolve(newIds);
-          }
-        }
-      );
-    });
+    const rows = this.db.prepare(`SELECT id FROM ${tableName}_ids WHERE id IN (${placeholders})`).all(...ids);
+    
+    const existingIds = new Set(rows.map((r) => r.id));
+    return ids.filter((id) => !existingIds.has(id));
   }
 
   /**
    * 添加单个ID
    */
   async add(tableName, id) {
-    await this.initPromise;
-
-    return new Promise((resolve, reject) => {
-      this.db.run(
-        `INSERT OR IGNORE INTO ${tableName}_ids (id) VALUES (?)`,
-        [id],
-        function (err) {
-          if (err) reject(err);
-          else resolve(this.changes > 0);
-        }
-      );
-    });
+    const result = this.db.prepare(`INSERT OR IGNORE INTO ${tableName}_ids (id) VALUES (?)`).run(id);
+    return result.changes > 0;
   }
 
   /**
    * 批量添加ID
    */
   async addBatch(tableName, ids) {
-    await this.initPromise;
-
     if (ids.length === 0) return 0;
 
-    return new Promise((resolve, reject) => {
-      this.db.serialize(() => {
-        this.db.run("BEGIN TRANSACTION");
-
-        const stmt = this.db.prepare(
-          `INSERT OR IGNORE INTO ${tableName}_ids (id) VALUES (?)`
-        );
-
-        let addedCount = 0;
-        ids.forEach((id) => {
-          stmt.run([id], function (err) {
-            if (!err && this.changes > 0) addedCount++;
-          });
-        });
-
-        stmt.finalize((err) => {
-          if (err) {
-            this.db.run("ROLLBACK");
-            reject(err);
-          } else {
-            this.db.run("COMMIT", (err) => {
-              if (err) reject(err);
-              else resolve(addedCount);
-            });
-          }
-        });
-      });
+    const insert = this.db.prepare(`INSERT OR IGNORE INTO ${tableName}_ids (id) VALUES (?)`);
+    
+    let addedCount = 0;
+    const transaction = this.db.transaction((ids) => {
+      for (const id of ids) {
+        const result = insert.run(id);
+        if (result.changes > 0) addedCount++;
+      }
     });
+    
+    transaction(ids);
+    return addedCount;
   }
 
   /**
    * 记录推送日志
    */
   async logPush(tableName, item, status, errorMessage = null) {
-    await this.initPromise;
-
-    return new Promise((resolve, reject) => {
-      this.db.run(
-        `INSERT INTO ${tableName}_logs 
-         (item_id, subject, url, quantity, country, rfq_level, status, error_message) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          item.id,
-          item.subject,
-          item.url,
-          item.quantity,
-          item.country,
-          item.rfqStarLevel,
-          status,
-          errorMessage,
-        ],
-        function (err) {
-          if (err) reject(err);
-          else resolve(this.lastID);
-        }
-      );
-    });
+    const result = this.db.prepare(`
+      INSERT INTO ${tableName}_logs 
+      (item_id, subject, url, quantity, country, rfq_level, status, error_message) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      item.id,
+      item.subject,
+      item.url,
+      item.quantity,
+      item.country,
+      item.rfqStarLevel,
+      status,
+      errorMessage
+    );
+    
+    return result.lastInsertRowid;
   }
 
   /**
    * 记录爬取统计
    */
   async logStats(tableName, stats) {
-    await this.initPromise;
-
-    return new Promise((resolve, reject) => {
-      this.db.run(
-        `INSERT INTO ${tableName}_stats 
-         (total_fetched, new_items, duplicate_items, push_success, push_failed) 
-         VALUES (?, ?, ?, ?, ?)`,
-        [
-          stats.total || 0,
-          stats.new || 0,
-          stats.duplicate || 0,
-          stats.sent || 0,
-          stats.failed || 0,
-        ],
-        function (err) {
-          if (err) reject(err);
-          else resolve(this.lastID);
-        }
-      );
-    });
+    const result = this.db.prepare(`
+      INSERT INTO ${tableName}_stats 
+      (total_fetched, new_items, duplicate_items, push_success, push_failed) 
+      VALUES (?, ?, ?, ?, ?)
+    `).run(
+      stats.total || 0,
+      stats.new || 0,
+      stats.duplicate || 0,
+      stats.sent || 0,
+      stats.failed || 0
+    );
+    
+    return result.lastInsertRowid;
   }
 
   /**
    * 获取统计信息
    */
   async getStats(tableName) {
-    await this.initPromise;
-
-    return new Promise((resolve, reject) => {
-      this.db.get(
-        `SELECT 
-           COUNT(*) as total_ids,
-           MIN(first_seen_at) as first_seen,
-           MAX(last_checked_at) as last_checked
-         FROM ${tableName}_ids`,
-        [],
-        (err, row) => {
-          if (err) reject(err);
-          else resolve(row);
-        }
-      );
-    });
+    return this.db.prepare(`
+      SELECT 
+        COUNT(*) as total_ids,
+        MIN(first_seen_at) as first_seen,
+        MAX(last_checked_at) as last_checked
+      FROM ${tableName}_ids
+    `).get();
   }
 
   /**
    * 获取今日统计
    */
   async getTodayStats(tableName) {
-    await this.initPromise;
-
-    return new Promise((resolve, reject) => {
-      this.db.get(
-        `SELECT 
-           SUM(total_fetched) as total,
-           SUM(new_items) as new_items,
-           SUM(push_success) as success,
-           SUM(push_failed) as failed
-         FROM ${tableName}_stats 
-         WHERE DATE(crawled_at) = DATE('now')`,
-        [],
-        (err, row) => {
-          if (err) reject(err);
-          else resolve(row || { total: 0, new_items: 0, success: 0, failed: 0 });
-        }
-      );
-    });
+    const row = this.db.prepare(`
+      SELECT 
+        SUM(total_fetched) as total,
+        SUM(new_items) as new_items,
+        SUM(push_success) as success,
+        SUM(push_failed) as failed
+      FROM ${tableName}_stats 
+      WHERE DATE(crawled_at) = DATE('now')
+    `).get();
+    
+    return row || { total: 0, new_items: 0, success: 0, failed: 0 };
   }
 
   /**
    * 获取最近的推送日志
    */
   async getRecentLogs(tableName, limit = 10) {
-    await this.initPromise;
-
-    return new Promise((resolve, reject) => {
-      this.db.all(
-        `SELECT * FROM ${tableName}_logs ORDER BY pushed_at DESC LIMIT ?`,
-        [limit],
-        (err, rows) => {
-          if (err) reject(err);
-          else resolve(rows);
-        }
-      );
-    });
+    return this.db.prepare(`
+      SELECT * FROM ${tableName}_logs 
+      ORDER BY pushed_at DESC 
+      LIMIT ?
+    `).all(limit);
   }
 
   /**
@@ -359,18 +249,12 @@ class SQLiteIDManager {
    */
   async close() {
     if (this.db) {
-      return new Promise((resolve, reject) => {
-        this.db.close((err) => {
-          if (err) reject(err);
-          else {
-            console.log("✓ 数据库连接已关闭");
-            resolve();
-          }
-        });
-      });
+      this.db.close();
+      console.log("✓ 数据库连接已关闭");
     }
   }
 }
+
 
 // ========== Unicode 解码 ==========
 function decodeUnicodeEscapes(str) {
@@ -436,7 +320,7 @@ async function scrapeOneURL(urlConfig, dbManager) {
   const stats = { total: 0, duplicate: 0, new: 0, sent: 0, failed: 0 };
   const tableName = urlConfig.tableName;
   const fullCookie = `
-ali_apache_id=33.8.180.39.1761265072910.656194.5; t=03c76544007e9e8fb622decbee5d426e; cna=tbOBIWIYuk4CAXQDEsbjxxnp; sc_g_cfg_f=sc_b_site=CN&sc_b_locale=en_US&sc_b_currency=CNY; _ga=GA1.2.228270212.1761813577; _gid=GA1.2.1081960679.1761813577; xlly_s=1; _samesite_flag_=true; cookie2=1d48e853a04e4d5d65c6d44f88b7cd66; _tb_token_=78353776e0e87; sca=e0738437; ali_apache_tracktmp=W_signed=Y; ali_apache_track=mt=3|mid=cn1568703453hmwa; xman_us_f=x_locale=en_US&x_user=CN|Peanut|Hu|cgs|278795110&no_popup_today=n&last_popup_time=1762139209591&x_l=1; intl_common_forever=DQWOdLuPr23ZNUv0ioo/nwpG70Ob5uPRzQ5iF1H51Q1SPfcy9eNfQg==; xman_us_t=l_source=alibaba&sign=y&need_popup=y&x_user=RdUK0Gn0EuwLZc0QaA8VQB2wIyxGjahH9JMNGFFFZ5I=&ctoken=b_jglf5l0ovk&x_lid=cn1568703453hmwa; xman_f=W27Qr142aoAxcihl8dlcPQ4VJ+VTWE7Rco0LiD2sBTS0jMUlKMqiQ3AQ34gDzBMCnbeAfClIOrpmmyA9QoxarRT9LfvILmacGPX6dAjVsAo6NFa+Xc0YtnHuyKGi6XR/W53WYNBGggKzE/XSHNuTnULe+PGlblYY/FVFcf2xh7pdqfU5Ns3CmKAPn6uRGQQypXvhlRHjn2ZRcaNqCzY/u+aUZl6HbQNOvUmvVx22wUwt/WFWq4PKyw5/C2yH1j8AnFPhsRUwebQEwrMoa2O+B8q9tyEG8cQBWN6r8p4mGR5LIl9jQ3XBia/bWYDhAyxUMHgzynevHew98noMNcOq6hMwWUNwieydH4+pLqPqwc/3mIg+7JEfGV16qtfO4ZFgW0j7lZFZnkqZWD/CyIM+zw==; acs_usuc_t=acs_rt=90ade3817d664d0889310e734dffb365; intl_locale=en_US; xman_i=aid=2218151544130; sgcookie=E100nR0EQshS8Pab02BvoO/mZ/0ew0yeIRdoI44beDOfS/Mpd99TPcq+Adrhsrw7FPA0XIYT/4gJuVg5OSjjSoCG1v72ija2KwV6eKFH6O3ar6g=; xman_status2=0; xman_t=G49n7tq5+Uwuyw+R7a5b7VY3Z4d/l/Ct7hZXQ4c0BfDOT069gv9kulstjOHxYZWR5tvDmldISKul9bV++q6kz4zjirYr8Ua2eb1QN/AERMhyuN8byvSR1NESl8HeOId8axsm1Cpe9KyU4ZadTk5blm9i8ymux9z86N6L0DnDiWy+7HXTNSjls7uVnIZUYtUc0QamBUUEH/FaUxr8TOTnQA4rt5a+sLyA2vedG6lZDIgJrdB4X5A3enfUd1pIjE/Zr0W8YeT+HLOgglvvgUSIZcoaZZhOSRFb/XZ5SVAHML8cXcFLQCQmIIwtT0PPFCZcmgZanBRwiKIJzquxR58/QIyNZUuI33QwkWgUVvD/ZkvW1DkS3wiqkHMmuz1RwP0s9r2up4XBu6ypEiHCkQwLq0BhWDkMK1tSpE3hzHSk+zInYzW7jZE50juD4hr28b47v9xHAbCYIXJYmDtIysHG/JRHXogC3ReAWbVlCGXUzh3/xtCgxfRs7G/pOQ+3lkOjgc2hekDRBXO9pVcVvtucegTcsi4BqcHJ08/q3lkCN/jtZJJ7uSfGIgzGc7d0Qy0NoUK1g8QLy/kGhO+C+uUVz3h1YepW3mjqYGKb6305nrZPfqNl4wGFdtrRw6ljfaAquUh9UW79IFHXLauzNntZXhqf5yW0MVlQnxnJEofDslGCqHOJGa6S6tOsMmD3ScHMwdGDSPRkDvGocmrJ+recGg==; isg=BICAf7ku_UuqkoFPtizMWT0eUQ5SCWTT6k_L1PoRhhsudSGfohxjY07Vi9W1Xhyr; ug_se_c=organic_1762147910165; ug_se_c_tag=ts=1762147910165; atpsida=33c2977bce9cc0bf142e0f35_1762148366_8; _gat=1; icbu_s_tag=10_5_11; _ga_9RX53F1PN8=GS2.2.s1762145975$o17$g1$t1762148369$j60$l0$h0; tfstk=gNRqmLg59jh4HQESG3Ca8heiiO1Ai1oQsCs1SFYGlijccsNGIhxVCnTiHVlwbhutkFmvbCSk5d_fiOwNsLY9hqBsDP-W2nPb1FA1SC5vNKN1cmCwSH1ZADGIOELAB1mIAIGdtP5GSfsiFt4u0ETSADGIN7iTsToBlClGh_bOqZVcI50zrwQOslXDjgXl-wZcs1xiz_bCuo2GjNYlrwSlj1fMjU0PWgbcs1xMr47ttp6Oh8scn4_GpzKzRw6VxEjzTedPo1evogPa_QJP3Mq145VMaZ8aF4kbTAsHpi6CV3c7g18l73WB3DP2bFYpITRamqtHPndFiBo4Ga6N0LAcUPVGZ_9DAd-q0-IDh3WdrT4Z9atCqEdDUVEkoHsViaXSt28lILOApIiug6vpls9Mx0wfmp7G4IEOr9wM6KrgQtbRzMgrz7LeDafWFbUYBRBuqaSI8MwTBtbRzMgrzReOEYbPA2SC.; JSESSIONID=8A3E3129A977D24D1F703A228A4B76C9
+ali_apache_id=33.5.127.154.1766190533755.043141.0; _samesite_flag_=true; cookie2=1ec60c17377876869294d3f04e1337cf; t=ab0db316cb069c9d7405f3ee1459c647; _tb_token_=be533733355e; cna=x9vMIUDEXUcBASQIgi8Jf3gw; sca=33ac3609; _ga=GA1.2.549030053.1766190535; _gid=GA1.2.2110881352.1766190535; xlly_s=1; banThirdCookie=flag; ug_se_c=organic_1766190666202; ug_se_c_tag=ts=1766190666202; sc_g_cfg_f=sc_b_currency=CNY&sc_b_locale=en_US&sc_b_site=CN; _lang=en_US:ISO-8859-1; ali_apache_tracktmp=W_signed=Y; recommend_login=sns_google; xman_status2=0; intl_locale=zh_CN; ali_apache_track=mt=3|mid=cn1568703453hmwa; xman_t=O0zTKq0YBg1vQ+4TmHh81UevawBWlPaMyjj338piIseW4EzMW2DtK5lWbLmlywMURZzn//MXh5yI5gcYmfWJxCXWeRfHUFSwjLf42y7iplxgYo9JDTfDLZXfnbeAVw8VZ0dwPotGxrI+Nlyq3hqjco92GRVyYXEY4/RrPrNzKrpjjbb5napsj+9iYPR1fGepUw/czvhuiAf95nQII68zT22zf25LSqVv6s98qU9FBuCyL0rMb9qOddFZ/zAs9jlOeB4Dh2tLmh25xvPzf7Zqqto024rWsV059cP2zfBlPnDrVeR/r4FdOpsl0er3qc2etBH4ZJQx5u14JxBE9hCLbSOUGMPX9ciuW+BA7+Ja6gDT+KovBbuhLpJf8qa0pEbO5hvmZ3BBCboz8lvkKYErJs/vVA3WMD/8Es/VEy0beZy9WMtfHjh+ojYw99aNMgAULq25GCHXdruD+E5xw2Qd24AXC/73BYuwCd9KfeC4+HI/vSggHGC36lZDm8nOjrL0boryCNOXGNFYs6GUy0n/qs8+y5fY5TtPTLcKZn7YU27xjFxBz7EqAYGJVWova68vUiWmKNubdV6H0hzt230sorRBTlBFtbYOdXvg7GcZ4BGbCBH+Oua/tXm76KG9bbJiWsRfkp4JO09ZRONOY/+pyuJtSB8Cg9SfymawNmHuOvpsi1KxhRdjM3PUbPsZOi0iVJtJQXqZt5Snw8mjvgMN3g==; xman_us_f=x_locale=zh_CN&x_l=1&x_user=CN|Peanut|Hu|cgs|278795110&no_popup_today=n&last_popup_time=1766193776372; intl_common_forever=pq7+WsWm+I3wi7D+PrAFgqGXfwexnI77Kv1Hsq/8mcTSEWVknZx8sQ==; xman_us_t=l_source=alibaba&sign=y&need_popup=y&x_user=l1uZtSQ239B66WaOBIEST9Bck/Nd0dAwTVdNiN6Crrk=&ctoken=r02qgi045ren&x_lid=cn1568703453hmwa; xman_f=p5af3zDKNP0hZAIQDUALrNYlpvpQ7gMRUVNq1FE16175tDNPvAVtFZ4PzkmEfjIATz2cYNBj+6YnXtvDpN3z57cKEmW9P7sjJC1Ix0ylx9lZR3o9BWj/zbzidjUBJxqTVSwevDdbnLn1mmmmrxwqoWzGX20VN6LVOctPXij3gnH+Dp+sORSBYRdelDBrOoKV+W7QmcHIzEZITTgfKnqtVL0C8/3AbEDbF7PTGS26proLp3TsGVu4FNGUlr1QxPm7SRq8OURcKBCPbeKcCrCrI9ooH12A0kKcbErOK5W+Q02dnB16J7FDUz/eeNJDf3PM8+tGtpF3yrG4SzGqgFVv6wjUh73Q1YNJlKsbTlTYhLIMv7z9CirSj5PxVu3REodo2qS4f30sKlCkpGg4L/HqyQ==; acs_usuc_t=acs_rt=f72c83d2b9f94ee189a47e3cc91205dd; xman_i=aid=2218151544130; sgcookie=E100aFKcmU0wXpC4q13v+4wuXS/1sv+U2PCjhQRB87n3eBpMtt3gvDuDP8fVwkser157OQzlv4OqMAUP3WUU95po5pB0eFpQAK0GzaCCfSoFUk0=; _gat=1; _ga_9RX53F1PN8=GS2.2.s1766193739$o2$g1$t1766193874$j60$l0$h0; atpsida=f10def392215abf2a46190a1_1766193880_10; JSESSIONID=A1023B65680EFA60909E2282FB48D409; icbu_s_tag=10_11; tfstk=gJSZvCDwzlEa7dFlUTx4YActJYt90nPWiiOXntXDCCAM1hiDosfwl160W-rVgsyYBtVOgiRhhZ9_XCi20t5AG5Cf5IvDT1mX5iWx0KXcMRdbBy6OBnK0N7Z4VOBTCmYgWWt0n9xX3bfIo3BOBnHKWHPnQOEVVAGJinfDxBvXHncMiK2ExKOnjKmMnX2eHBxmIImM-Xv6eVvcin2FKBpDmdfDSJWH9KxDijQR6shWEF2d0TTZ0ove7QXMTmWAYdYZWOAEmmjF8FRoNBommMJNnszrs0zXZad6PI53Ac-VKK5ePNPrbsWceZYF0f21Z6bVipQLgqRPoO_Roeygj9-w__SpzA02bZfO0FQZH8BHj6QJwF4L9pS1VERJ8XVGd9RMzZ5_9mA1z9fePMGIV3bRTi8kqg-IMpYEriQZiq8MppR7LJuWwg96UJjrBq3v-UveNRLmkqLMppR7LJuxkFnkLQw9o
 `.replace(/\n/g, '').trim();
   try {
     const response = await axios.get(urlConfig.url, {
@@ -448,6 +332,40 @@ ali_apache_id=33.8.180.39.1761265072910.656194.5; t=03c76544007e9e8fb622decbee5d
       timeout: 10000,
     });
 
+
+    // // ========== 🔍 检查登录状态 ==========
+    // const htmlContent = response.data;
+    // const hasJoinFree = htmlContent.includes('Join Free');
+    
+    // const timestamp = new Date().toLocaleString('zh-CN', {
+    //   timeZone: 'Asia/Shanghai',
+    //   hour12: false
+    // });
+
+
+    // // ✅ 保存 HTML 到文件
+    // const htmlDir = path.join(__dirname, 'html_logs');
+    // if (!fs.existsSync(htmlDir)) {
+    //   fs.mkdirSync(htmlDir, { recursive: true });
+    // }
+    // const safeTimestamp = timestamp.replace(/[/:]/g, '-').replace(/\s/g, '_');
+    // const htmlFileName = `${urlConfig.tableName}_${safeTimestamp}.html`;
+    // const htmlFilePath = path.join(htmlDir, htmlFileName);
+    // try {
+    //   fs.writeFileSync(htmlFilePath, htmlContent, 'utf-8');
+    //   console.log(`📄 HTML 已保存: ${htmlFilePath}`);
+    // } catch (err) {
+    //   console.error(`❌ 保存 HTML 失败: ${err.message}`);
+    // }
+
+    // if (hasJoinFree) {
+    //   console.log(`❌ [${timestamp}] [${urlConfig.name}] ⚠️ 未登录 - 检测到 "Join Free"`);
+    //   await sendLoginAlert(urlConfig);
+    //   return stats;
+    // } else {
+    //   console.log(`✅ [${timestamp}] [${urlConfig.name}] 已登录`);
+    // }
+    // ========== 登录检测结束 ==========
     const $ = cheerio.load(response.data);
     let targetScript = null;
 
